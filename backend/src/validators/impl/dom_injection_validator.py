@@ -2,22 +2,17 @@ from typing import List, Dict, Any
 from src.validators.validator_interface import ValidatorInterface
 from src.models.validation_result import ValidationResult
 from src.utils.validation_utils import validate_with_patterns
+from src.config.config import config
 import logging
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DOM_INJECTION_PATTERNS = [
-    "<script>alert('XSS')</script>",
-    "<iframe src=javascript:alert('XSS')></iframe>",
-    "<body onload=alert('XSS')>",
-]
-DEFAULT_EXPECTED_STATUS_CODE = 400
-
 
 class DOMInjectionValidator(ValidatorInterface):
-    def __init__(self, patterns: List[str] = DEFAULT_DOM_INJECTION_PATTERNS, expected_status_code: int = DEFAULT_EXPECTED_STATUS_CODE):
-        self.patterns = patterns
-        self.expected_status_code = expected_status_code
+    def __init__(self):
+        dom_injection_config = config['validators']['domInjection']
+        self.patterns = dom_injection_config['patterns']
+        self.expected_status_code = dom_injection_config['expectedStatusCode']
 
     async def validate(self, method: str, url: str, urlParams: Dict[str, str], req_body: Dict[str, Any], headers: Dict[str, str], scan_id: str) -> List[ValidationResult]:
         logger.info(f"Scan ID: {scan_id} | Starting DOM injection validation")

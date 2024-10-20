@@ -1,0 +1,28 @@
+{
+  "validators": {
+    "sqlInjection": {
+      "patterns": [
+        "' OR '1'='1",
+        "'; DROP TABLE users; --",
+        "' OR 1=1 --",
+        "SELECT * FROM users WHERE name = 'admin' AND password = 'password';"
+      ],
+      "expectedStatusCode": 400
+    },
+    "domInjection": {
+      "patterns": [
+        "<script>alert('XSS')</script>",
+        "<iframe src=javascript:alert('XSS')></iframe>",
+        "<body onload=alert('XSS')>"
+      ],
+      "expectedStatusCode": 400
+    },
+    "stringLength": {
+      "lengthSteps": [100, 250, 500],
+      "expectedStatusCode": 400
+    },
+    "cors": {
+      "maliciousOrigin": "https://malicious-site.com"
+    }
+  }
+}

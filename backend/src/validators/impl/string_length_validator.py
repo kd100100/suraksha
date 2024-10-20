@@ -2,19 +2,18 @@ from typing import List, Dict, Any
 from src.validators.validator_interface import ValidatorInterface
 from src.models.validation_result import ValidationResult
 from src.utils.validation_utils import validate_with_patterns
+from src.config.config import config
 import logging
 import traceback
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_LENGTH_STEPS = [100, 250, 500]
-DEFAULT_EXPECTED_STATUS_CODE = 400
-
 
 class StringLengthValidator(ValidatorInterface):
-    def __init__(self, length_steps: List[int] = DEFAULT_LENGTH_STEPS, expected_status_code: int = DEFAULT_EXPECTED_STATUS_CODE):
-        self.length_steps = length_steps
-        self.expected_status_code = expected_status_code
+    def __init__(self):
+        string_length_config = config['validators']['stringLength']
+        self.length_steps = string_length_config['lengthSteps']
+        self.expected_status_code = string_length_config['expectedStatusCode']
 
     async def validate(self, method: str, url: str, urlParams: Dict[str, str], req_body: Dict[str, Any], headers: Dict[str, str], scan_id: str) -> List[ValidationResult]:
         try:

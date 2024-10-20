@@ -1,21 +1,25 @@
 from src.validators.validator_interface import ValidatorInterface
 from src.models.validation_result import ValidationResult
 from src.client.rest_request_handler import make_request
+from src.config.config import config
 import logging
 
 logger = logging.getLogger(__name__)
 
 
 class CORSValidator(ValidatorInterface):
+    def __init__(self):
+        self.cors_config = config['validators']['cors']
+        self.malicious_origin = self.cors_config['maliciousOrigin']
+
     async def validate(self, method: str, url: str, urlParams: dict, req_body: dict, headers: dict, scan_id: str) -> list[ValidationResult]:
         logger.info(
             f"Scan ID: {scan_id} | Starting CORS validation for URL: {url}")
         results = []
 
         # Test for CORS misconfiguration
-        origin = "https://malicious-site.com"
         cors_headers = {
-            "Origin": origin,
+            "Origin": self.malicious_origin,
             "Access-Control-Request-Method": method,
             "Access-Control-Request-Headers": "Content-Type"
         }
@@ -28,14 +32,14 @@ class CORSValidator(ValidatorInterface):
 
         # Check CORS headers in the responses
         is_vulnerable, vulnerability_details = self._check_cors_headers(
-            options_response, actual_response, origin)
+            options_response, actual_response, self.malicious_origin)
 
         results.append(ValidationResult(
             isValid=not is_vulnerable,
             modification={
                 "type": "CORS",
                 "key": "Origin",
-                "value": origin
+                "value": self.malicious_origin
             },
             request={
                 "method": method,
