@@ -20,16 +20,18 @@ VALIDATORS = [
 
 async def process_scan(scan_id: str):
     try:
+        logger.info(f"Scan ID: {scan_id} | Starting scan process")
         db = get_database()
 
         # Update scan status to "PROCESSING"
         await db.scans.update_one(
             {"id": scan_id}, {"$set": {"status": "PROCESSING"}})
+        logger.info(f"Scan ID: {scan_id} | Updated scan status to PROCESSING")
 
         # Retrieve the scan
         scan_data = await db.scans.find_one({"id": scan_id})
         if not scan_data:
-            logger.error(f"Scan with id {scan_id} not found")
+            logger.error(f"Scan ID: {scan_id} | Scan not found")
             return
 
         scan = ScanModel(**scan_data)
@@ -38,7 +40,7 @@ async def process_scan(scan_id: str):
         validation_summaries = await run_validation(scan_id, scan.request)
 
         # Save results
-        await save_results(validation_summaries)
+        await save_results(scan_id, validation_summaries)
 
         # Update scan status to "COMPLETED"
         await db.scans.update_one(
@@ -51,9 +53,10 @@ async def process_scan(scan_id: str):
             }
         )
 
-        logger.info(f"Scan {scan_id} processed successfully")
+        logger.info(
+            f"Scan ID: {scan_id} | Scan process completed successfully")
     except Exception as e:
-        logger.error(f"Error processing scan {scan_id}: {str(e)}")
+        logger.error(f"Scan ID: {scan_id} | Error processing scan: {str(e)}")
         await db.scans.update_one({"id": scan_id}, {"$set": {"status": "FAILED"}})
 
 
@@ -62,12 +65,15 @@ async def run_validation(scan_id: str, api_spec: ScanRequest) -> List[Validation
 
     for validator_name, validator in VALIDATORS:
         try:
+            logger.info(
+                f"Scan ID: {scan_id} | Starting {validator_name} validation")
             results = await validator.validate(
                 api_spec.method,
                 api_spec.url,
                 api_spec.url_params,
                 api_spec.body or {},
-                api_spec.headers
+                api_spec.headers,
+                scan_id
             )
 
             summary = ValidationSummary(
@@ -78,14 +84,16 @@ async def run_validation(scan_id: str, api_spec: ScanRequest) -> List[Validation
             )
             validation_summaries.append(summary)
 
-            logger.info(f"Validator {validator_name} completed successfully")
+            logger.info(
+                f"Scan ID: {scan_id} | {validator_name} validation completed successfully")
         except Exception as e:
-            logger.error(f"Error running validator {validator_name}: {str(e)}")
+            logger.error(
+                f"Scan ID: {scan_id} | Error running {validator_name} validator: {str(e)}")
 
     return validation_summaries
 
 
-async def save_results(validation_summaries: List[ValidationSummary]):
+async def save_results(scan_id: str, validation_summaries: List[ValidationSummary]):
     """Save validation summaries to the database using insert_many."""
     db = get_database()
     if validation_summaries:
@@ -94,8 +102,9 @@ async def save_results(validation_summaries: List[ValidationSummary]):
                          for summary in validation_summaries]
             await db.validation_results.insert_many(documents)
             logger.info(
-                f"Saved {len(validation_summaries)} validation summaries")
+                f"Scan ID: {scan_id} | Saved {len(validation_summaries)} validation summaries")
         except Exception as e:
-            logger.error(f"Error saving validation results: {str(e)}")
+            logger.error(
+                f"Scan ID: {scan_id} | Error saving validation results: {str(e)}")
     else:
-        logger.warning("No validation summaries to save")
+        logger.warning(f"Scan ID: {scan_id} | No validation summaries to save")
