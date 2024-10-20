@@ -1,13 +1,9 @@
 from abc import ABC, abstractmethod
+from typing import Dict, Any, List
+from src.models.validation_result import ValidationResult
 
 
-class Validator(ABC):
+class ValidatorInterface(ABC):
     @abstractmethod
-    def validate(self, data: str) -> dict:
-        """
-        Validate the input data and return a dictionary with the validation results.
-
-        :param data: The input data to validate
-        :return: A dictionary containing the validation results
-        """
+    async def validate(self, method: str, url: str, url_params: Dict[str, str], body: Dict[str, Any], headers: Dict[str, str]) -> List[ValidationResult]:
         pass
