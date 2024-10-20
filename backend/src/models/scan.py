@@ -8,7 +8,7 @@ class ScanRequest(BaseModel):
     method: str = Field(...,
                         description="HTTP method for the scan", example="GET")
     url: str = Field(..., description="URL to scan")
-    url_params: Dict[str, str] = Field(
+    urlParams: Dict[str, str] = Field(
         default={}, description="URL parameters")
     headers: Dict[str, str] = Field(default={}, description="HTTP headers")
     body: Optional[Dict[str, Any]] = Field(
@@ -33,7 +33,7 @@ class ScanModel(BaseModel):
                 "request": {
                     "method": "GET",
                     "url": "https://api.example.com/data",
-                    "url_params": {"param1": "value1"},
+                    "urlParams": {"param1": "value1"},
                     "body": {"key": "value"},
                     "headers": {"Content-Type": "application/json"}
                 },

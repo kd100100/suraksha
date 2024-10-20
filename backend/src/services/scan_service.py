@@ -4,6 +4,7 @@ from src.config.database import get_database
 from src.validators.impl.sql_injection_validator import SQLInjectionValidator
 from src.validators.impl.dom_injection_validator import DOMInjectionValidator
 from src.validators.impl.string_length_validator import StringLengthValidator
+from src.validators.impl.cors_validator import CORSValidator
 import logging
 from datetime import datetime
 from typing import List
@@ -15,6 +16,7 @@ VALIDATORS = [
     ("SQL_INJECTION", SQLInjectionValidator()),
     ("DOM_INJECTION", DOMInjectionValidator()),
     ("STRING_LENGTH", StringLengthValidator()),
+    ("CORS", CORSValidator()),
 ]
 
 
@@ -109,7 +111,7 @@ async def run_validation(scan_id: str, api_spec: ScanRequest) -> List[Validation
             results = await validator.validate(
                 api_spec.method,
                 api_spec.url,
-                api_spec.url_params,
+                api_spec.urlParams,
                 api_spec.body or {},
                 api_spec.headers,
                 scan_id
@@ -149,3 +151,86 @@ async def save_results(scan_id: str, validation_summaries: List[ValidationSummar
                 f"Scan ID: {scan_id} | Error saving validation results: {str(e)}")
     else:
         logger.warning(f"Scan ID: {scan_id} | No validation summaries to save")
+
+
+async def get_trend_data(path: str):
+    db = get_database()
+    pipeline = [
+        {"$match": {"path": path, "status": "COMPLETED"}},
+        {"$lookup": {
+            "from": "validation_results",
+            "localField": "id",
+            "foreignField": "scanId",
+            "as": "results"
+        }},
+        {"$project": {
+            "id": 1,
+            "createdAt": 1,
+            "pass_count": {
+                "$sum": {
+                    "$map": {
+                        "input": "$results",
+                        "as": "result",
+                        "in": {
+                            "$size": {
+                                "$filter": {
+                                    "input": "$$result.results",
+                                    "as": "test",
+                                    "cond": {"$eq": ["$$test.isValid", True]}
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "fail_count": {
+                "$sum": {
+                    "$map": {
+                        "input": "$results",
+                        "as": "result",
+                        "in": {
+                            "$size": {
+                                "$filter": {
+                                    "input": "$$result.results",
+                                    "as": "test",
+                                    "cond": {"$eq": ["$$test.isValid", False]}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }},
+        {"$sort": {"createdAt": -1}},
+        {"$limit": 10}
+    ]
+
+    trend_data = await db.scans.aggregate(pipeline).to_list(length=None)
+    return [
+        {
+            "scanId": item["id"],
+            "createdAt": item["createdAt"].isoformat(),
+            "pass": item["pass_count"],
+            "fail": item["fail_count"]
+        }
+        for item in trend_data
+    ]
+
+
+async def get_scan_results(scan_id: str):
+    db = get_database()
+    scan = await db.scans.find_one({"id": scan_id})
+    if not scan:
+        logger.error(f"Scan ID: {scan_id} | Scan not found")
+        return None
+
+    validation_results = await db.validation_results.find({"scanId": scan_id}).to_list(length=None)
+    trend_data = await get_trend_data(scan["path"])
+
+    return {
+        "scan": scan,
+        "validation_results": validation_results,
+        "trend_data": trend_data
+    }
+
+# ... (keep all other functions unchanged)

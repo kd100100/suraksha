@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from src.models.scan import ScanRequest, ScanModel
 from src.config.database import get_database
-from src.services.scan_service import process_scan, create_scan_model
+from src.services.scan_service import process_scan, create_scan_model, get_scan_results
 import logging
 from bson import ObjectId
 
@@ -44,24 +44,18 @@ async def create_scan(scan_request: ScanRequest, background_tasks: BackgroundTas
 
 
 @router.get("/scan/{scan_id}", response_model=dict)
-async def get_scan_results(scan_id: str):
+async def get_scan_results_route(scan_id: str):
     """
     Retrieve the results of a specific scan.
 
     - **scan_id**: The ID of the scan to retrieve results for
-    - **returns**: The scan details and validation results
+    - **returns**: The scan details, validation results, and trend data
     """
     try:
-        db = get_database()
-
-        # Retrieve the scan
-        scan = await db.scans.find_one({"id": scan_id})
-        if not scan:
+        results = await get_scan_results(scan_id)
+        if not results:
             logger.warning(f"Scan ID: {scan_id} | Scan not found")
             raise HTTPException(status_code=404, detail="Scan not found")
-
-        # Retrieve the validation results
-        validation_results = await db.validation_results.find({"scanId": scan_id}).to_list(None)
 
         # Convert ObjectId to string for JSON serialization
         def convert_objectid(obj):
@@ -73,15 +67,11 @@ async def get_scan_results(scan_id: str):
                 return str(obj)
             return obj
 
-        scan = convert_objectid(scan)
-        validation_results = convert_objectid(validation_results)
+        results = convert_objectid(results)
 
         logger.info(
-            f"Scan ID: {scan_id} | Retrieved scan results successfully")
-        return {
-            "scan": scan,
-            "validation_results": validation_results
-        }
+            f"Scan ID: {scan_id} | Retrieved scan results and trend data successfully")
+        return results
     except HTTPException:
         raise
     except Exception as e:

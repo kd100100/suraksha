@@ -16,14 +16,14 @@ class StringLengthValidator(ValidatorInterface):
         self.length_steps = length_steps
         self.expected_status_code = expected_status_code
 
-    async def validate(self, method: str, url: str, url_params: Dict[str, str], req_body: Dict[str, Any], headers: Dict[str, str], scan_id: str) -> List[ValidationResult]:
+    async def validate(self, method: str, url: str, urlParams: Dict[str, str], req_body: Dict[str, Any], headers: Dict[str, str], scan_id: str) -> List[ValidationResult]:
         try:
             result = await validate_with_patterns(
                 [str(step) for step in self.length_steps],
                 self._apply_length_pattern,
                 method,
                 url,
-                url_params,
+                urlParams,
                 req_body,
                 headers,
                 self.expected_status_code,

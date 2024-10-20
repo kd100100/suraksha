@@ -9,6 +9,8 @@ import {
   Shield,
   Moon,
   Sun,
+  Activity,
+  Bolt,
 } from "lucide-react";
 import {
   BarChart,
@@ -22,8 +24,8 @@ import {
   PieChart as RePieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
 } from "recharts";
 
 const COLORS = ["#00C49F", "#FF8042", "#0088FE", "#FFBB28", "#8884d8"];
@@ -40,7 +42,7 @@ const TestItem = ({ test, darkMode }) => {
         onClick={() => setIsOpen(!isOpen)}
       >
         <div className="flex items-center">
-          {test.is_valid ? (
+          {test.isValid ? (
             <CheckCircle className="text-green-500 mr-2" size={16} />
           ) : (
             <XCircle className="text-red-500 mr-2" size={16} />
@@ -67,13 +69,10 @@ const TestItem = ({ test, darkMode }) => {
             <strong>Status Code:</strong> {test.response.status_code}
           </p>
           <div
-            className={`mt-2 p-2 rounded ${test.is_valid ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
+            className={`mt-2 p-2 rounded ${test.isValid ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
           >
             <p>
-              <strong>Status:</strong> {test.response.body.statusCode}
-            </p>
-            <p>
-              <strong>Message:</strong> {test.response.body.statusMessage}
+              <strong>Status:</strong> {test.response.body.message}
             </p>
           </div>
         </div>
@@ -85,16 +84,6 @@ const TestItem = ({ test, darkMode }) => {
 const TestResult = ({ result, darkMode }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Group tests by modification type
-  const groupedTests = result.modification
-    ? { [result.modification.type]: [result] }
-    : result.results.reduce((acc, test) => {
-        const type = test.modification.type;
-        if (!acc[type]) acc[type] = [];
-        acc[type].push(test);
-        return acc;
-      }, {});
-
   return (
     <div
       className={`border ${
@@ -103,19 +92,16 @@ const TestResult = ({ result, darkMode }) => {
     >
       <div className="flex justify-between items-center cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
         <div className="flex items-center">
-          <span className={`font-semibold ${darkMode ? "text-white" : "text-gray-800"}`}>Test Results</span>
+          <span className={`font-semibold ${darkMode ? "text-white" : "text-gray-800"}`}>
+            {result.validation} Results
+          </span>
         </div>
         {isOpen ? <ChevronUp className="text-blue-500" /> : <ChevronDown className="text-blue-500" />}
       </div>
       {isOpen && (
         <div className={`mt-4 space-y-4 ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
-          {Object.entries(groupedTests).map(([type, tests]) => (
-            <div key={type} className="border-t pt-2">
-              <h3 className="font-semibold mb-2">{type}</h3>
-              {tests.map((test, index) => (
-                <TestItem key={index} test={test} darkMode={darkMode} />
-              ))}
-            </div>
+          {result.results.map((test, index) => (
+            <TestItem key={index} test={test} darkMode={darkMode} />
           ))}
         </div>
       )}
@@ -125,8 +111,8 @@ const TestResult = ({ result, darkMode }) => {
 
 const ScanTypeChart = ({ results }) => {
   const data = [
-    { name: "Valid", value: results.filter((r) => r.is_valid).length },
-    { name: "Invalid", value: results.filter((r) => !r.is_valid).length },
+    { name: "Valid", value: results.filter((r) => r.isValid).length },
+    { name: "Invalid", value: results.filter((r) => !r.isValid).length },
   ];
 
   return (
@@ -153,8 +139,11 @@ const ScanTypeChart = ({ results }) => {
   );
 };
 
-const ScanType = ({ type, results, overallResult, totalRuntime, darkMode }) => {
+const ScanType = ({ type, results, darkMode }) => {
   const [isOpen, setIsOpen] = useState(false);
+
+  const overallResult = results.every((r) => r.isValid);
+  const totalRuntime = results.reduce((sum, r) => sum + r.executionTime, 0);
 
   const gradientColor = overallResult
     ? `${darkMode ? "from-green-700 to-blue-900" : "from-green-400 to-blue-500"}`
@@ -186,7 +175,7 @@ const ScanType = ({ type, results, overallResult, totalRuntime, darkMode }) => {
         <div className="p-4">
           <ScanTypeChart results={results} />
           <div className="mt-4 space-y-4">
-            <TestResult result={{ type, results, is_valid: overallResult }} darkMode={darkMode} />
+            <TestResult result={{ validation: type, results }} darkMode={darkMode} />
           </div>
         </div>
       )}
@@ -196,18 +185,24 @@ const ScanType = ({ type, results, overallResult, totalRuntime, darkMode }) => {
 
 const OverallMetrics = ({ data, darkMode }) => {
   const totalTests = data.reduce((sum, scanType) => sum + scanType.results.length, 0);
-  const totalRuntime = data.reduce((sum, scanType) => sum + scanType.total_runtime, 0);
-  const passedTests = data.reduce((sum, scanType) => sum + scanType.results.filter((r) => r.is_valid).length, 0);
+  const totalRuntime = data.reduce(
+    (sum, scanType) => sum + scanType.results.reduce((sum, r) => sum + r.executionTime, 0),
+    0
+  );
+  const passedTests = data.reduce((sum, scanType) => sum + scanType.results.filter((r) => r.isValid).length, 0);
 
-  const chartData = data.map(scanType => ({
-    name: scanType.type,
-    Pass: scanType.results.filter(r => r.is_valid).length,
-    Fail: scanType.results.filter(r => !r.is_valid).length
+  const chartData = data.map((scanType) => ({
+    name: scanType.validation,
+    Pass: scanType.results.filter((r) => r.isValid).length,
+    Fail: scanType.results.filter((r) => !r.isValid).length,
   }));
 
   return (
     <div className={`${darkMode ? "bg-gray-800 text-white" : "bg-white text-gray-800"} rounded-xl shadow-2xl p-8 mb-8`}>
-      <h2 className="text-2xl font-bold mb-4">Overall Metrics</h2>
+      <div className="flex items-center gap-3 mb-4">
+        <Bolt className="w-6 h-6 text-orange-500" />
+        <h2 className="text-2xl font-bold">Overall Metrics</h2>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className={`${darkMode ? "bg-blue-900" : "bg-blue-100"} p-4 rounded-lg`}>
           <p className={`${darkMode ? "text-blue-200" : "text-blue-800"} font-semibold`}>Total Tests</p>
@@ -243,45 +238,72 @@ const OverallMetrics = ({ data, darkMode }) => {
   );
 };
 
-const TrendChart = ({ darkMode }) => {
-  const data = [
-    { name: "1st Jan '24, 5:34 PM", vulnerabilities: 15 },
-    { name: "1st Jan '24, 10:34 PM", vulnerabilities: 8 },
-    { name: "2nd Jan '24, 12:11 PM", vulnerabilities: 10 },
-    { name: "2nd Jan '24, 6:02 PM", vulnerabilities: 0 },
-  ];
+const TrendChart = ({ darkMode, trendData }) => {
+  const data = trendData.map((item) => ({
+    name: new Date(item.createdAt).toLocaleString(),
+    vulnerabilities: item.fail,
+  }));
+
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+
+    return (
+      <div
+        className={`${darkMode ? "bg-gray-900" : "bg-white"} p-4 rounded-lg shadow-lg border ${
+          darkMode ? "border-gray-700" : "border-gray-200"
+        }`}
+      >
+        <p className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-600"}`}>{label}</p>
+        <p className="text-lg font-bold mt-1">{payload[0].value} vulnerabilities</p>
+      </div>
+    );
+  };
 
   return (
-    <div className={`${darkMode ? "bg-gray-800 text-white" : "bg-white text-gray-800"} rounded-xl shadow-2xl p-8 mb-8`}>
-      <h2 className="text-2xl font-bold mb-4">Vulnerability Trend</h2>
+    <div className={`${darkMode ? "bg-gray-800 text-white" : "bg-white"} rounded-xl shadow-2xl p-8 mb-8`}>
+      <div className="flex items-center gap-3 mb-6">
+        <Activity className="w-6 h-6 text-orange-500" />
+        <h2 className="text-2xl font-bold">Vulnerability Trend</h2>
+      </div>
+
       <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#555" : "#ccc"} />
-          <XAxis dataKey="name" stroke={darkMode ? "#fff" : "#333"} />
-          <YAxis stroke={darkMode ? "#fff" : "#333"} />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: darkMode ? "#333" : "#fff",
-              border: `1px solid ${darkMode ? "#555" : "#ccc"}`,
-              color: darkMode ? "#fff" : "#333",
-            }}
+        <AreaChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="vulnerabilityGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#FF8042" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#FF8042" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#374151" : "#E5E7EB"} vertical={false} />
+          <XAxis dataKey="name" stroke={darkMode ? "#9CA3AF" : "#6B7280"} fontSize={12} tickMargin={12} />
+          <YAxis stroke={darkMode ? "#9CA3AF" : "#6B7280"} fontSize={12} tickMargin={8} />
+          <Tooltip content={CustomTooltip} />
+          <Area
+            type="monotone"
+            dataKey="vulnerabilities"
+            stroke="#FF8042"
+            strokeWidth={2}
+            fill="url(#vulnerabilityGradient)"
           />
-          <Legend />
-          <Line type="monotone" dataKey="vulnerabilities" stroke="#FF8042" strokeWidth={2} />
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );
 };
 
-const InfoSecAPIScanReport = ({ data }) => {
+const InfoSecAPIScanReport = ({ scanData, darkMode, setDarkMode, onBackToCreate }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  if (!scanData) {
+    return <div>No scan data available.</div>;
+  }
+
+  const { scan, validation_results } = scanData;
 
   return (
     <div
@@ -324,24 +346,26 @@ const InfoSecAPIScanReport = ({ data }) => {
             } border-l-4 p-4 rounded transition-all duration-300`}
           >
             <AlertOctagon className="mr-2" />
-            <p>Attention: Multiple security vulnerabilities detected. Immediate action required.</p>
+            <p>Scan completed for {scan.url}. Review the results below.</p>
           </div>
         </div>
 
-        <OverallMetrics data={data} darkMode={darkMode} />
+        <OverallMetrics data={validation_results} darkMode={darkMode} />
 
-        {data.map((scanType, index) => (
-          <ScanType
-            key={index}
-            type={scanType.type}
-            results={scanType.results}
-            overallResult={scanType.is_valid}
-            totalRuntime={scanType.total_runtime}
-            darkMode={darkMode}
-          />
+        {scanData.validation_results.map((scanType, index) => (
+          <ScanType key={index} type={scanType.validation} results={scanType.results} darkMode={darkMode} />
         ))}
 
-        <TrendChart darkMode={darkMode} />
+        <TrendChart darkMode={darkMode} trendData={scanData.trend_data} />
+
+        {/* <button
+          onClick={onBackToCreate}
+          className={`mt-4 px-4 py-2 rounded ${
+            darkMode ? "bg-blue-600 hover:bg-blue-700" : "bg-blue-500 hover:bg-blue-600"
+          } text-white font-semibold transition-colors duration-300`}
+        >
+          Back to Create Scan
+        </button> */}
       </div>
     </div>
   );

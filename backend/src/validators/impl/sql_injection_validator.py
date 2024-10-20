@@ -20,13 +20,13 @@ class SQLInjectionValidator(ValidatorInterface):
         self.patterns = patterns
         self.expected_status_code = expected_status_code
 
-    async def validate(self, method: str, url: str, url_params: Dict[str, str], req_body: Dict[str, Any], headers: Dict[str, str], scan_id: str) -> List[ValidationResult]:
+    async def validate(self, method: str, url: str, urlParams: Dict[str, str], req_body: Dict[str, Any], headers: Dict[str, str], scan_id: str) -> List[ValidationResult]:
         return await validate_with_patterns(
             self.patterns,
             lambda field_value, pattern: field_value + pattern,
             method,
             url,
-            url_params,
+            urlParams,
             req_body,
             headers,
             self.expected_status_code,
