@@ -18,14 +18,41 @@ VALIDATORS = [
 ]
 
 
+def create_scan_model(scan_request: ScanRequest) -> ScanModel:
+    logger.info(f"Creating scan model for URL: {scan_request.url}")
+    url = scan_request.url
+    domain_and_path = url.split('://')[-1]
+
+    parts = domain_and_path.split('/', 1)
+    domain = parts[0]
+    path = '/' + parts[1] if len(parts) > 1 else '/'
+
+    scan_model = ScanModel(
+        request=scan_request,
+        domain=domain,
+        path=path
+    )
+
+    return scan_model
+
+
 async def process_scan(scan_id: str):
     try:
         logger.info(f"Scan ID: {scan_id} | Starting scan process")
         db = get_database()
 
         # Update scan status to "PROCESSING"
+        current_time = datetime.utcnow()
         await db.scans.update_one(
-            {"id": scan_id}, {"$set": {"status": "PROCESSING"}})
+            {"id": scan_id},
+            {
+                "$set": {
+                    "status": "PROCESSING",
+                    "updatedAt": current_time,
+                    "updatedBy": "system"
+                }
+            }
+        )
         logger.info(f"Scan ID: {scan_id} | Updated scan status to PROCESSING")
 
         # Retrieve the scan
@@ -43,12 +70,14 @@ async def process_scan(scan_id: str):
         await save_results(scan_id, validation_summaries)
 
         # Update scan status to "COMPLETED"
+        completed_at = datetime.utcnow()
         await db.scans.update_one(
             {"id": scan_id},
             {
                 "$set": {
                     "status": "COMPLETED",
-                    "completed_at": datetime.now().isoformat()
+                    "updatedAt": completed_at,
+                    "updatedBy": "system"
                 }
             }
         )
@@ -57,7 +86,17 @@ async def process_scan(scan_id: str):
             f"Scan ID: {scan_id} | Scan process completed successfully")
     except Exception as e:
         logger.error(f"Scan ID: {scan_id} | Error processing scan: {str(e)}")
-        await db.scans.update_one({"id": scan_id}, {"$set": {"status": "FAILED"}})
+        current_time = datetime.utcnow()
+        await db.scans.update_one(
+            {"id": scan_id},
+            {
+                "$set": {
+                    "status": "FAILED",
+                    "updatedAt": current_time,
+                    "updatedBy": "system"
+                }
+            }
+        )
 
 
 async def run_validation(scan_id: str, api_spec: ScanRequest) -> List[ValidationSummary]:
@@ -80,7 +119,9 @@ async def run_validation(scan_id: str, api_spec: ScanRequest) -> List[Validation
                 scanId=scan_id,
                 validation=validator_name,
                 apiUrl=api_spec.url,
-                results=results
+                results=results,
+                createdAt=datetime.utcnow(),
+                createdBy="system"
             )
             validation_summaries.append(summary)
 

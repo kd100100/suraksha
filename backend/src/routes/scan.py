@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from src.models.scan import ScanRequest, ScanModel
 from src.config.database import get_database
-from src.services.scan_service import process_scan
+from src.services.scan_service import process_scan, create_scan_model
 import logging
 from bson import ObjectId
 
@@ -20,8 +20,8 @@ async def create_scan(scan_request: ScanRequest, background_tasks: BackgroundTas
     try:
         db = get_database()
 
-        # Create a new ScanModel instance
-        scan_model = ScanModel(request=scan_request)
+        # Create a new ScanModel instance using the service function
+        scan_model = create_scan_model(scan_request)
 
         # Insert the document
         result = await db.scans.insert_one(scan_model.dict())

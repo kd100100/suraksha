@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional
 import uuid
 from datetime import datetime
@@ -16,29 +16,33 @@ class ScanRequest(BaseModel):
 
 
 class ScanModel(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()),
-                    description="Unique identifier for the scan")
-    status: str = Field(default="CREATED",
-                        description="Current status of the scan")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     request: ScanRequest
-    created_at: str = Field(default_factory=lambda: datetime.now(
-    ).isoformat(), description="Timestamp of scan creation")
-    completed_at: Optional[str] = Field(
-        default=None, description="Timestamp of scan completion")
+    domain: str = Field(default="", description="Domain of the API")
+    path: str = Field(default="", description="Path of the API")
+    status: str = "CREATED"
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+    createdBy: str = "system"
+    updatedAt: datetime = Field(default_factory=datetime.utcnow)
+    updatedBy: str = "system"
 
     class Config:
         schema_extra = {
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
-                "status": "CREATED",
                 "request": {
                     "method": "GET",
-                    "url": "https://example.com",
+                    "url": "https://api.example.com/data",
                     "url_params": {"param1": "value1"},
-                    "headers": {"Content-Type": "application/json"},
-                    "body": {"key": "value"}
+                    "body": {"key": "value"},
+                    "headers": {"Content-Type": "application/json"}
                 },
-                "created_at": "2023-06-01T12:00:00Z",
-                "completed_at": None
+                "domain": "api.example.com",
+                "path": "/data",
+                "status": "CREATED",
+                "createdAt": "2023-06-01T12:00:00Z",
+                "createdBy": "system",
+                "updatedAt": "2023-06-01T12:00:00Z",
+                "updatedBy": "system"
             }
         }

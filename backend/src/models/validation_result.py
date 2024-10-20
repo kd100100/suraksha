@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field
-from typing import Dict, Any, List
+from typing import List, Dict, Any
 from datetime import datetime
-import uuid
 
 
 class Modification(BaseModel):
@@ -15,32 +14,44 @@ class ValidationResult(BaseModel):
     modification: Modification
     request: Dict[str, Any]
     response: Dict[str, Any]
-    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
     executionTime: float
-
-    @classmethod
-    def create(cls, is_valid: bool, modification: Modification, request: Dict[str, Any], response: Dict[str, Any], execution_time: float):
-        return cls(
-            isValid=is_valid,
-            modification=modification,
-            request=request,
-            response=response,
-            executionTime=execution_time
-        )
 
 
 class ValidationSummary(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     scanId: str
     validation: str
     apiUrl: str
     results: List[ValidationResult]
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+    createdBy: str = "system"
 
-    @classmethod
-    def create(cls, scan_id: str, validation: str, api_url: str, results: List[ValidationResult]):
-        return cls(
-            scanId=scan_id,
-            validation=validation,
-            apiUrl=api_url,
-            results=results,
-        )
+    class Config:
+        schema_extra = {
+            "example": {
+                "scanId": "123e4567-e89b-12d3-a456-426614174000",
+                "validation": "SQL_INJECTION",
+                "apiUrl": "https://api.example.com/data",
+                "results": [
+                    {
+                        "isValid": True,
+                        "modification": {
+                            "type": "URL_PARAM",
+                            "key": "id",
+                            "value": "1 OR 1=1"
+                        },
+                        "request": {
+                            "method": "GET",
+                            "url": "https://api.example.com/data?id=1 OR 1=1",
+                            "headers": {"Content-Type": "application/json"}
+                        },
+                        "response": {
+                            "status_code": 400,
+                            "body": "Invalid input"
+                        },
+                        "executionTime": 0.5
+                    }
+                ],
+                "createdAt": "2023-06-01T12:00:00Z",
+                "createdBy": "system"
+            }
+        }
