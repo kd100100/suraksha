@@ -1,0 +1,79 @@
+from typing import List, Dict, Any, Literal, Union
+from models.validation_result import ValidationResult, Modification
+from client.rest_request_handler import make_request
+import copy
+import time
+
+FieldType = Literal["URL_PARAM", "REQUEST_BODY"]
+
+
+def validate_field_for_injection(field_key: str, field_value: Any, field_type: FieldType, method: str, url: str, url_params: Dict[str, str], req_body: Dict[str, Any], headers: Dict[str, str], injection_patterns: List[str], expected_status_code: int) -> List[ValidationResult]:
+    """Validate a field for vulnerabilities."""
+    if isinstance(field_value, str):
+        return validate_string_field_for_injection(field_key, field_value, field_type, method, url, url_params, req_body, headers, injection_patterns, expected_status_code)
+    elif isinstance(field_value, dict):
+        results = []
+        for inner_key, inner_value in field_value.items():
+            results.extend(validate_field_for_injection(
+                f"{field_key}.{inner_key}", inner_value, field_type, method, url, url_params, req_body, headers, injection_patterns, expected_status_code))
+        return results
+    elif isinstance(field_value, list):
+        results = []
+        for index, value in enumerate(field_value):
+            results.extend(validate_field_for_injection(
+                f"{field_key}[{index}]", value, field_type, method, url, url_params, req_body, headers, injection_patterns, expected_status_code))
+        return results
+    return []
+
+
+def validate_string_field_for_injection(field_key: str, field_value: str, field_type: FieldType, method: str, url: str, url_params: Dict[str, str], req_body: Dict[str, Any], headers: Dict[str, str], injection_patterns: List[str], expected_status_code: int) -> List[ValidationResult]:
+    """Validate a string field for vulnerabilities."""
+    results = []
+    for pattern in injection_patterns:
+        start_time = time.time()
+        temp_url_params = copy.deepcopy(url_params)
+        temp_req_body = copy.deepcopy(req_body)
+
+        if field_type == "URL_PARAM":
+            set_nested_value(temp_url_params, field_key, pattern)
+        else:
+            set_nested_value(temp_req_body, field_key, pattern)
+
+        formatted_url = url.format(**temp_url_params)
+
+        response = make_request(method, formatted_url, temp_req_body, headers)
+        end_time = time.time()
+        runtime = end_time - start_time
+
+        results.append(ValidationResult.create(
+            is_valid=response["status_code"] == expected_status_code,
+            modification=Modification(
+                type=field_type,
+                key=field_key,
+                value=pattern
+            ),
+            request={
+                "method": method,
+                "url": formatted_url,
+                "body": temp_req_body,
+                "headers": headers,
+            },
+            response=response,
+            runtime=runtime
+        ))
+    return results
+
+
+def set_nested_value(obj: Dict[str, Any], key: Union[str, List[str]], value: Any):
+    """Set a value in a nested dictionary using a dot-separated key or a list of keys."""
+    if isinstance(key, str):
+        keys = key.split('.')
+    else:
+        keys = key
+
+    if keys[0] == '':  # Handle keys starting with a dot
+        keys = keys[1:]
+
+    for k in keys[:-1]:
+        obj = obj.setdefault(k, {})
+    obj[keys[-1]] = value
